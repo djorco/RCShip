@@ -6,7 +6,7 @@
  */
 
 #include "IRremote.h"
-#include <Servo.h>
+#include "Servo.h"
 
 
 /* PINs Declaration */
@@ -30,7 +30,7 @@ Servo svTimon;  // create servo object to control a servo
 IRrecv irrecv(PIN_IR_RECEIVER);     // create instance of 'irrecv'
 decode_results irCommand;      // create instance of 'decode_results'
 
-/* Ship Constants */
+/* Ship intants */
 int TIMON_MIN = 30;
 int TIMON_MAX = 150;
 int MOTOR_MAX = 255;
@@ -43,7 +43,7 @@ int TIMON_STOP = 90;
 int posTimon = TIMON_STOP;
 int velMotorBabor = 0;
 int velMotorEstribor = 0;
-int luzBajoCubierta = LOW;
+int luzCasco = LOW;
 int luzTorre = LOW;
 int posTimonDest = 0;
 int velMotorBaborDest = 0;
@@ -74,7 +74,12 @@ void manageIRAction() {
       // Muevo el timon para Babor
       posTimonDest -= TIMON_STEP;
       break;
-    case 0xFF02FD: Serial.println("PAUSE");    break;
+    case 0xFF02FD: //Serial.println("PAUSE");    
+      // Pongo en 0 el status de movimiento del barco con los destions 
+      posTimonDest = TIMON_STOP;
+      velMotorBaborDest = 0;
+      velMotorEstriborDest = 0;      
+      break;
     case 0xFFC23D: //Serial.println("FAST FORWARD");   
       // Muevo el timon para Estribor
       posTimonDest += TIMON_STEP;
@@ -110,7 +115,7 @@ void manageIRAction() {
     case 0xFF42BD: Serial.println("7");    break;
     case 0xFF4AB5: //Serial.println("8");    
       // cambio luz de bajo cubierta
-      luzBajoCubierta = switchLed(luzBajoCubierta);
+      luzCasco = switchLed(luzCasco);
       break;
     case 0xFF52AD: //Serial.println("9");    
       // cambio luz de torre;
@@ -125,21 +130,52 @@ void manageIRAction() {
   }
 } //END translateIR
 
+int transitionVariable(int orig, int dest) {
+  if (orig > dest) {
+    return orig--;
+  } else if (orig < dest) {
+    return orig++;  
+  } else {
+    return orig;  
+  }
+}
 
 /* Move the transition values to the destinations */
 void transitionToDestinationVariables() {
-  
+  posTimon = transitionVariable(posTimon, posTimonDest);
+  velMotorEstribor = transitionVariable(velMotorEstribor, velMotorEstriborDest);
+  velMotorBabor = transitionVariable(velMotorBabor, velMotorBaborDest);
 }
+
 
 /* Controla que los limites del timon y los motores no se pasen*/
 void controlLimites() {
-  
+ posTimon = min(max(posTimon, TIMON_MAX), TIMON_MIN);
+ velMotorBabor = min(max(velMotorBabor, MOTOR_MAX), MOTOR_MIN);
+ velMotorEstribor = min(max(velMotorEstribor, MOTOR_MAX), MOTOR_MIN);
+}
+
+/* Apply the motor speed to the specific motor's pins, TODO: Check the direction of the pins*/
+void applyVelMotor(int pinE, int pinA, int pinB, int vel) {
+  if (vel >= 0) {
+    digitalWrite(pinB, LOW);
+    digitalWrite(pinA, HIGH);
+    analogWrite(pinE, vel);
+  } else {
+    digitalWrite(pinA, LOW);
+    digitalWrite(pinB, HIGH);
+    analogWrite(pinE, -vel);
+  }
 }
 
 /* Apply the calculated state to the elements on the ship */
 void applyStateToShip() {
   controlLimites();
   svTimon.write(posTimon);
+  applyVelMotor(PIN_MTE_ENABLED, PIN_MTE_DIR_A, PIN_MTE_DIR_B, velMotorEstribor);
+  applyVelMotor(PIN_MTB_ENABLED, PIN_MTB_DIR_A, PIN_MTB_DIR_B, velMotorBabor);
+  analogWrite(PIN_LED_TORRE, luzTorre);
+  analogWrite(PIN_LED_CASCO, luzCasco);
 }
 
 void setup()   /*----( SETUP: RUNS ONCE )----*/
@@ -153,7 +189,7 @@ void setup()   /*----( SETUP: RUNS ONCE )----*/
 }/*--(end setup )---*/
 
 
-void loop()   /*----( LOOP: RUNS CONSTANTLY )----*/
+void loop()   /*----( LOOP: RUNS intANTLY )----*/
 {
   manageIRAction();
   transitionToDestinationVariables();
