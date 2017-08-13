@@ -16,10 +16,10 @@ int PIN_LED_CASCO  = 9;
 int PIN_SERVO_TIMON = 8;
 //int PIN_MTE_ENABLED = 7;
 //int PIN_MTB_ENABLED = 6;
-int PIN_MTE_DIR_A = 5;
-int PIN_MTE_DIR_B = 4;
-int PIN_MTB_DIR_A = 3;
-int PIN_MTB_DIR_B = 2;
+int PIN_MTE_DIR_A = 3;
+int PIN_MTE_DIR_B = 2;
+int PIN_MTB_DIR_A = 1;
+int PIN_MTB_DIR_B = 0;
 
 
 
