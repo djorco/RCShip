@@ -10,16 +10,17 @@
 
 
 /* PINs Declaration */
-int PIN_IR_RECEIVER = 13;
-int PIN_LED_TORRE = 10;
-int PIN_LED_CASCO  = 9; 
-int PIN_SERVO_TIMON = 8;
-//int PIN_MTE_ENABLED = 7;
-//int PIN_MTB_ENABLED = 6;
-int PIN_MTE_DIR_A = 3;
-int PIN_MTE_DIR_B = 2;
-int PIN_MTB_DIR_A = 1;
-int PIN_MTB_DIR_B = 0;
+int PIN_IR_RECEIVER = 4;
+int PIN_LED_TORRE = 13;
+int PIN_LED_CASCO  = 12; 
+int PIN_SERVO_TIMON = 11;
+int PIN_MTE_DIR_A = 8;
+int PIN_MTE_DIR_B = 7;
+int PIN_MTB_DIR_A = 10;
+int PIN_MTB_DIR_B = 9;
+int PIN_MTE_EN = 6;
+int PIN_MTB_EN = 5;
+
 
 
 
@@ -33,9 +34,9 @@ decode_results irCommand;      // create instance of 'decode_results'
 /* Ship intants */
 int TIMON_MIN = 30;
 int TIMON_MAX = 150;
-int MOTOR_MAX = 127;
-int MOTOR_MIN = -64;
-int MOTOR_STEP = 32;
+int MOTOR_MAX = 255;
+int MOTOR_MIN = -255;
+int MOTOR_STEP = 64;
 int TIMON_STEP = 20;
 int TIMON_STOP = 90;
 
@@ -154,23 +155,31 @@ void controlLimites() {
 }
 
 /* Apply the motor speed to the specific motor's pins, TODO: Check the direction of the pins*/
-void applyVelMotor(int pinA, int pinB, int vel) {
-    digitalWrite(pinB, LOW);
-    digitalWrite(pinA, LOW);
- 
+void applyVelMotorWithEn(int pinA, int pinB, int pinEn, int vel) {
+  int absvel = abs(vel);
+  if (absvel < 5) absvel = 0;
   if (vel > 0) {
-    analogWrite(pinA, 127 + vel);
+    digitalWrite(pinB, LOW);
+    digitalWrite(pinA, HIGH);
   } else if (vel < 0) {
-    analogWrite(pinB, 127 - vel);
+    digitalWrite(pinA, LOW);
+    digitalWrite(pinB, HIGH);
+    analogWrite(pinEn, -vel);
+  } else {
+    digitalWrite(pinA, LOW);
+    digitalWrite(pinB, LOW);
   }
+  analogWrite(pinEn, absvel);
 }
 
+
+
 void printTransition(char* control, int origen, int destino) {
-    Serial.print(control);
-    Serial.print(" - Dest: ");
-    Serial.print(destino);
-    Serial.print(", Actual: ");
-    Serial.println(origen);  
+   Serial.print(control);
+   Serial.print(" - Dest: ");
+   Serial.print(destino);
+   Serial.print(", Actual: ");
+   Serial.println(origen);  
 }
 
 /* Apply the calculated state to the elements on the ship */
@@ -181,15 +190,19 @@ void applyStateToShip() {
     printTransition("Timon", posTimon, posTimonDest);
     svTimon.write(posTimon);
   }
-  if (velMotorEstribor != velMotorEstriborDest) {
-    velMotorEstribor = transitionVariable(velMotorEstribor, velMotorEstriborDest);
-    printTransition("Estribor", velMotorEstribor, velMotorEstriborDest);
-    applyVelMotor(PIN_MTE_DIR_A, PIN_MTE_DIR_B, velMotorEstribor);
-  }
   if (velMotorBabor != velMotorBaborDest) {
     velMotorBabor = transitionVariable(velMotorBabor, velMotorBaborDest);
+    //velMotorBabor = velMotorBaborDest;
     printTransition("Babor", velMotorBabor, velMotorBaborDest);
-    applyVelMotor(PIN_MTB_DIR_A, PIN_MTB_DIR_B, velMotorBabor);
+    //applyVelMotor(PIN_MTB_DIR_A, PIN_MTB_DIR_B, velMotorBabor);
+    applyVelMotorWithEn(PIN_MTB_DIR_A, PIN_MTB_DIR_B, PIN_MTB_EN, velMotorBabor);
+  }
+  if (velMotorEstribor != velMotorEstriborDest) {
+    velMotorEstribor = transitionVariable(velMotorEstribor, velMotorEstriborDest);
+    //velMotorEstribor = velMotorEstriborDest;
+    printTransition("Estri", velMotorEstribor, velMotorEstriborDest);
+    //applyVelMotor(PIN_MTE_DIR_A, PIN_MTE_DIR_B, velMotorEstribor);
+    applyVelMotorWithEn(PIN_MTE_DIR_A, PIN_MTE_DIR_B, PIN_MTE_EN, velMotorEstribor);
   }
   digitalWrite(PIN_LED_TORRE, luzTorre);
   digitalWrite(PIN_LED_CASCO, luzCasco);
@@ -201,6 +214,14 @@ void setup()   /*----( SETUP: RUNS ONCE )----*/
   Serial.println("USS-Hornet IR-controlled Started"); 
   irrecv.enableIRIn(); // -Start the receiver
   svTimon.attach(PIN_SERVO_TIMON);
+  pinMode(PIN_MTE_DIR_A, OUTPUT);
+  pinMode(PIN_MTE_DIR_B, OUTPUT);
+  pinMode(PIN_MTB_DIR_A, OUTPUT);
+  pinMode(PIN_MTB_DIR_B, OUTPUT);
+  pinMode(PIN_MTE_EN, OUTPUT);
+  pinMode(PIN_MTB_EN, OUTPUT);
+  pinMode(PIN_LED_CASCO, OUTPUT);
+  pinMode(PIN_LED_TORRE, OUTPUT);
   applyStateToShip();
 
 }/*--(end setup )---*/
