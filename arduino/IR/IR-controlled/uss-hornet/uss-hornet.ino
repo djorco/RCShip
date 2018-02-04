@@ -6,39 +6,40 @@
  */
 
 #include "IRremote.h"
-#include <Servo.h>
+//#include <Servo.h>
 
 
 /* PINs Declaration */
-int PIN_IR_RECEIVER = 4;
-int PIN_LED_TORRE = 13;
-int PIN_LED_CASCO  = 12; 
-int PIN_SERVO_TIMON = 11;
-int PIN_MTE_DIR_A = 8;
-int PIN_MTE_DIR_B = 7;
-int PIN_MTB_DIR_A = 10;
-int PIN_MTB_DIR_B = 9;
-int PIN_MTE_EN = 6;
-int PIN_MTB_EN = 5;
-
+const int PIN_IR_RECEIVER = 13;
+const int PIN_LED_CASCO_INT = 3;
+const int PIN_LED_CASCO_EXT  = 4;
+const int PIN_LED_TORRE = 12; 
+const int PIN_SERVO_TIMON = 11;
+const int PIN_MTE_DIR_A = 8;
+const int PIN_MTE_DIR_B = 7;
+const int PIN_MTB_DIR_A = 10;
+const int PIN_MTB_DIR_B = 9;
+const int PIN_MTE_EN = 6;
+const int PIN_MTB_EN = 5;
+const int PIN_BUZZER = 2;
 
 
 
 /* Servo Objects */
-Servo svTimon;  // create servo object to control a servo
+//Servo svTimon;  // create servo object to control a servo
 
 /* IR Objects*/
 IRrecv irrecv(PIN_IR_RECEIVER);     // create instance of 'irrecv'
 decode_results irCommand;      // create instance of 'decode_results'
 
 /* Ship intants */
-int TIMON_MIN = 30;
-int TIMON_MAX = 150;
-int MOTOR_MAX = 255;
-int MOTOR_MIN = -255;
-int MOTOR_STEP = 64;
-int TIMON_STEP = 20;
-int TIMON_STOP = 90;
+const int TIMON_MIN = 60;
+const int TIMON_MAX = 120;
+const int MOTOR_MAX = 255;
+const int MOTOR_MIN = -255;
+const int MOTOR_STEP = 64;
+const int TIMON_STEP = 10;
+const int TIMON_STOP = 90;
 
 /* Ship Status */
 int posTimon = TIMON_STOP;
@@ -57,78 +58,111 @@ bool cambiarMotorE = true;
 bool cambiarLuzCasco = true;
 bool cambiarLuzTorre = true;
 
+void translateIR2() {
+  if (irrecv.decode(&irCommand)) {
+    switch (irCommand.value)
+    {
+    case 0x2FD48B7: Serial.println("POWER"); break;
+    case 0x2FDD827: Serial.println("ARRIBA"); break;
+    case 0x2FDF807: Serial.println("ABAJO"); break;
+    case 0x2FD08F7: Serial.println("PARLANTE"); break;
+    case 0x2FD7887: Serial.println("IZQUIERDA"); break;
+    case 0x2FD58A7: Serial.println("DERECHA"); break;
+    case 0x2FD28D7: Serial.println("AV-TV"); break;  
+    default: 
+      Serial.println(irCommand.value, HEX);
+      Serial.println(irCommand.decode_type);
+    }// End Case
+    irrecv.resume(); // Receive the next value
+  }
+  //delay(1000);
+  //Serial.println("test");
+}
 
+
+void manageIRAction2() {
+  if (irrecv.decode(&irCommand)) { // have we received an IR signal?
+    switch (irCommand.value)
+    {
+      case 0x2FD48B7: Serial.println("POWER"); 
+        posTimonDest = TIMON_STOP;
+        velMotorBaborDest = 0;
+        velMotorEstriborDest = 0;          
+        break;
+      case 0x2FDD827: Serial.println("ARRIBA"); 
+        velMotorBaborDest += MOTOR_STEP;
+        velMotorEstriborDest += MOTOR_STEP;
+        break;
+      case 0x2FDF807: Serial.println("ABAJO"); 
+        velMotorBaborDest -= MOTOR_STEP;
+        velMotorEstriborDest -= MOTOR_STEP;
+        break;
+      case 0x2FD08F7: Serial.println("PARLANTE"); 
+        break;
+      case 0x2FD7887: Serial.println("IZQUIERDA"); 
+        posTimonDest -= TIMON_STEP;
+        break;
+      case 0x2FD58A7: Serial.println("DERECHA"); 
+        posTimonDest += TIMON_STEP;
+        break;
+      case 0x2FD28D7: Serial.println("AV-TV"); 
+        luzCasco = switchLed(luzCasco);
+        luzTorre = switchLed(luzTorre);
+        break;  
+      //default: 
+      //  Serial.println(" other button   ");
+      //  Serial.println(irCommand.value, HEX);
+    
+    }// End Case
+    irrecv.resume();
+  }
+}
+
+
+/*
 void manageIRAction() {
   if (irrecv.decode(&irCommand)) { // have we received an IR signal?
-    switch(irCommand.value) {
-    //case 0xFFA25D: Serial.println("POWER"); break;
-    //case 0xFFE21D: Serial.println("FUNC/STOP"); break;
-    case 0xFF629D: Serial.println("VOL+"); 
-      //Subo la velocidad general
-      velMotorBaborDest += MOTOR_STEP;
-      velMotorEstriborDest += MOTOR_STEP;
-      break;
-    case 0xFF22DD: Serial.println("FAST BACK");    
-      // Muevo el timon para Babor
-      posTimonDest -= TIMON_STEP;
-      break;
-    case 0xFF02FD: Serial.println("PAUSE");    
+    int valor = irCommand.value;
+    switch(valor) {
+    case 12: case 2060: Serial.println("STOP");    
       // Pongo en 0 el status de movimiento del barco con los destions 
       posTimonDest = TIMON_STOP;
       velMotorBaborDest = 0;
       velMotorEstriborDest = 0;      
       break;
-    case 0xFFC23D: Serial.println("FAST FORWARD");   
-      // Muevo el timon para Estribor
-      posTimonDest += TIMON_STEP;
-      break;
-    case 0xFFE01F: Serial.println("DOWN");    
-      // incremento motor babor solamente
+    case 32: case 2080: Serial.println("UP"); 
+      //Subo la velocidad general
       velMotorBaborDest += MOTOR_STEP;
+      velMotorEstriborDest += MOTOR_STEP;
       break;
-    case 0xFFA857: Serial.println("VOL-");    
+    case 33: case 2081: Serial.println("DOWN");    
       //Bajo la velocidad general
       velMotorBaborDest -= MOTOR_STEP;
       velMotorEstriborDest -= MOTOR_STEP;
       break;
-    case 0xFF906F: Serial.println("UP");    
-      // Incremento estribor solamente;
-      velMotorEstriborDest += MOTOR_STEP;
+    case 13: case 2061: Serial.println("SOUND");
       break;
-    //case 0xFF9867: Serial.println("EQ");    break;
-    case 0xFFB04F: Serial.println("ST/REPT");    
-      // Decremento estribor solamente
-      velMotorEstriborDest -= MOTOR_STEP;
+    case 17: case 2065: Serial.println("BACK");    
+      // Muevo el timon para Babor
+      posTimonDest -= TIMON_STEP;
       break;
-    case 0xFF6897: Serial.println("0");    
-      // Decremento motor babor solamente
-      velMotorBaborDest -= MOTOR_STEP;
+    case 16: case 2064: Serial.println("NEXT");   
+      // Muevo el timon para Estribor
+      posTimonDest += TIMON_STEP;
       break;
-    //case 0xFF30CF: Serial.println("1");    break;
-    //case 0xFF18E7: Serial.println("2");    break;
-    //case 0xFF7A85: Serial.println("3");    break;
-    //case 0xFF10EF: Serial.println("4");    break;
-    //case 0xFF38C7: Serial.println("5");    break;
-    //case 0xFF5AA5: Serial.println("6");    break;
-    //case 0xFF42BD: Serial.println("7");    break;
-    case 0xFF4AB5: Serial.println("8");    
+    case 11: case 2059: Serial.println("AVTV");    
       // cambio luz de bajo cubierta
       luzCasco = switchLed(luzCasco);
-      break;
-    case 0xFF52AD: Serial.println("9");    
-      // cambio luz de torre;
       luzTorre = switchLed(luzTorre);
       break;
-    //case 0xFFFFFFFF: Serial.println(" REPEAT");break;  
-  
     default: 
-      Serial.println(" other button   ");
-  
+      Serial.print(" other button: ");
+      Serial.println(valor);
     }// End Case
     irrecv.resume(); // receive the next value
   }
 } //END translateIR
-
+*/
 int transitionVariable(int orig, int dest) {
   if (orig > dest) {
     return orig - 1;
@@ -182,13 +216,55 @@ void printTransition(char* control, int origen, int destino) {
    Serial.println(origen);  
 }
 
+void testOutput() {
+  Serial.println("Test Motor Estribor");  
+  applyVelMotorWithEn(PIN_MTE_DIR_A, PIN_MTE_DIR_B, PIN_MTE_EN, MOTOR_MAX);
+  delay(1000);
+  applyVelMotorWithEn(PIN_MTE_DIR_A, PIN_MTE_DIR_B, PIN_MTE_EN, MOTOR_MIN);
+  delay(1000);
+  
+  Serial.println("Test Motor Babor");
+  applyVelMotorWithEn(PIN_MTB_DIR_A, PIN_MTB_DIR_B, PIN_MTB_EN, MOTOR_MAX);
+  delay(1000);
+  applyVelMotorWithEn(PIN_MTB_DIR_A, PIN_MTB_DIR_B, PIN_MTB_EN, MOTOR_MIN);
+  delay(1000);
+  
+  Serial.println("Test Timon");
+  //svTimon.write(TIMON_MAX);
+  delay(1000);
+  //svTimon.write(TIMON_MIN);
+  delay(1000);
+
+  Serial.println("Test lights");
+  digitalWrite(PIN_LED_TORRE, HIGH);
+  delay(1000);
+  digitalWrite(PIN_LED_TORRE, LOW);
+  digitalWrite(PIN_LED_CASCO_INT, HIGH);
+  delay(1000);
+  digitalWrite(PIN_LED_CASCO_INT, LOW);
+  digitalWrite(PIN_LED_CASCO_EXT, HIGH);
+  delay(1000);
+  digitalWrite(PIN_LED_CASCO_EXT, LOW);
+  delay(1000);
+  
+  Serial.println("Test sound");
+  //tone(PIN_BUZZER, 200, 500);
+  analogWrite(PIN_BUZZER, 240);
+  delay(500);
+  //tone(PIN_BUZZER, 100, 500);
+  analogWrite(PIN_BUZZER, 200);
+  delay(500);
+  digitalWrite(PIN_BUZZER, LOW);
+  
+}
+
 /* Apply the calculated state to the elements on the ship */
 void applyStateToShip() {
   controlLimites();
   if (posTimon != posTimonDest) {
     posTimon = transitionVariable(posTimon, posTimonDest);
     printTransition("Timon", posTimon, posTimonDest);
-    svTimon.write(posTimon);
+    //svTimon.write(posTimon);
   }
   if (velMotorBabor != velMotorBaborDest) {
     velMotorBabor = transitionVariable(velMotorBabor, velMotorBaborDest);
@@ -205,31 +281,43 @@ void applyStateToShip() {
     applyVelMotorWithEn(PIN_MTE_DIR_A, PIN_MTE_DIR_B, PIN_MTE_EN, velMotorEstribor);
   }
   digitalWrite(PIN_LED_TORRE, luzTorre);
-  digitalWrite(PIN_LED_CASCO, luzCasco);
+  digitalWrite(PIN_LED_CASCO_INT, luzCasco);
+  digitalWrite(PIN_LED_CASCO_EXT, luzCasco);
 }
 
 void setup()   /*----( SETUP: RUNS ONCE )----*/
 {
   Serial.begin(9600);
-  Serial.println("USS-Hornet IR-controlled Started"); 
+  Serial.println("USS-Hornet IR-controlled Starting"); 
   irrecv.enableIRIn(); // -Start the receiver
-  svTimon.attach(PIN_SERVO_TIMON);
-  pinMode(PIN_MTE_DIR_A, OUTPUT);
+  //svTimon.attach(PIN_SERVO_TIMON);
+/*  pinMode(PIN_MTE_DIR_A, OUTPUT);
   pinMode(PIN_MTE_DIR_B, OUTPUT);
   pinMode(PIN_MTB_DIR_A, OUTPUT);
   pinMode(PIN_MTB_DIR_B, OUTPUT);
   pinMode(PIN_MTE_EN, OUTPUT);
   pinMode(PIN_MTB_EN, OUTPUT);
-  pinMode(PIN_LED_CASCO, OUTPUT);
+  pinMode(PIN_LED_CASCO_INT, OUTPUT);
+  pinMode(PIN_LED_CASCO_EXT, OUTPUT);
   pinMode(PIN_LED_TORRE, OUTPUT);
+  pinMode(PIN_BUZZER, OUTPUT);
+  
+  //testOutput();  
+  applyVelMotorWithEn(PIN_MTE_DIR_A, PIN_MTE_DIR_B, PIN_MTE_EN, 0);
+  applyVelMotorWithEn(PIN_MTB_DIR_A, PIN_MTB_DIR_B, PIN_MTB_EN, 0);
+      
   applyStateToShip();
-
+*/
+  Serial.println("USS-Hornet IR-controlled Started"); 
+  
 }/*--(end setup )---*/
+
 
 
 void loop()   /*----( LOOP: RUNS intANTLY )----*/
 {
-  manageIRAction();
+  //translateIR2();
+  manageIRAction2();
   applyStateToShip();
 }/* --(end main loop )-- */
 
